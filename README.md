@@ -99,7 +99,14 @@ elements). My guardrail forbade weakening assertions, which deadlocked the
 loop until I let it reconcile genuinely contradictory expectations. A clean
 run without that tail lands around $1.50-2 on Sonnet.
 
-## What I'd improve
+## What worked / what I'd improve
+
+Worked well: dependency-ordered per-file generation (small prompts, parseable
+output), schema-validated planning with a single correction retry, and the
+tool-calling repair loop — the logs show real read → edit → re-run-checks
+sequences, not guesswork. The `--resume` flag paid for itself repeatedly.
+
+I'd improve:
 
 - Cross-test consistency check at plan time — the planner sees all test
   tasks and could pin one rendering contract, which would have prevented
