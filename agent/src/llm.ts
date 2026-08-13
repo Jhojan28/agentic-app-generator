@@ -32,7 +32,12 @@ interface ChatCompletionResponse {
 }
 
 const MAX_ATTEMPTS = 6;
-const REQUEST_TIMEOUT_MS = 120_000;
+// Per-request wall clock. Overridable because free-tier queues and large
+// reasoning models can take minutes for a single non-streamed completion.
+// Resolved per request, not at module load — .env is parsed inside main().
+function requestTimeoutMs(): number {
+  return Number(process.env["LLM_TIMEOUT_MS"] ?? 120_000);
+}
 
 /** Backoff for retryable failures: honor Retry-After plus a margin (rolling
  *  per-minute windows need breathing room), capped at 60s; else exponential. */
@@ -127,7 +132,7 @@ export class LlmClient {
           authorization: `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: AbortSignal.timeout(requestTimeoutMs()),
       }).catch((err: Error) => err);
 
       let retryAfter: string | null = null;
