@@ -1116,6 +1116,7 @@ Stack: React 19, TypeScript (strict, noUncheckedIndexedAccess), Vite, Apollo Cli
 Hard rules:
 - Import project files with the "@/" alias (e.g. import { theme } from "@/theme").
 - Use the design tokens from "@/theme" through the MUI theme (sx prop / styled API). Never hardcode hex colors in components.
+- In the sx prop, write radii as px strings — sx={{ borderRadius: \`\${tokens.radius.lg}px\` }} — because a bare number is multiplied by the theme's base radius. Use tokens.shadow.card for elevation shadows.
 - The GraphQL API is mocked by MSW. Use the operations exported from "@/graphql/queries"; do not invent new GraphQL operations unless a task explicitly asks for one.
 - Tests use Testing Library + Apollo's MockedProvider, following the example test shown in context.
 - Code must compile under strict TypeScript. Handle loading and error states for every query.
