@@ -1,177 +1,128 @@
 # Agentic App Generator
 
-A CLI agent that reads a natural-language product spec and autonomously
-generates a working React + TypeScript app into the provided boilerplate —
-planning, generating file-by-file, self-validating, and repairing its own
-errors.
+CLI agent that reads a natural-language spec and generates a working React +
+TypeScript app into the provided boilerplate: it plans, generates file by
+file, validates, and repairs its own errors.
 
-Built for the Senior Fullstack Engineer take-home (Agentic Code Generation
-Workflow).
-
-## Quick start
+## Running it
 
 ```bash
-# 1. Configure a provider (any OpenAI-compatible API)
-cp .env.example .env   # add your key
+cp .env.example .env        # add your API key (any OpenAI-compatible provider)
 
-# 2. Install + run the agent
-cd agent && npm install
-npm run agent -- --spec ../specs/sample-spec.md --output ../my-generated-app
+cd agent
+npm install
+npm run agent -- --spec ../specs/sample-spec.md --output ../my-app
 
-# 3. Run the generated app
-cd ../my-generated-app && npm install && npm run dev   # localhost:5173
+cd ../my-app
+npm install && npm run dev  # localhost:5173
 ```
 
-`generated-app/` is a committed sample of a verified run. The agent's own
-test suite: `cd agent && npm test` (54 tests) and `npm run typecheck`.
+`generated-app/` is a committed run you can inspect or run directly.
+Agent unit tests: `cd agent && npm test`.
 
-## Architecture
+Useful flags/env: `--resume` (re-validate and repair an existing output
+without regenerating), `LLM_MAX_OUTPUT_TOKENS`, `LLM_TIMEOUT_MS`,
+`AGENT_MAX_LLM_CALLS` (hard cost cap), `AGENT_REPAIR_HINT` (append a hint to
+the repair prompt when a loop is stuck). All documented in `.env.example`.
+
+## How it works
 
 ```mermaid
-flowchart TD
-    S[spec.md] --> P["PLAN\none LLM call → JSON task list\n(schema-validated, dependency-normalized,\ntopo-sorted; 1 correction retry)"]
-    P --> SC["SCAFFOLD\ncopy boilerplate/ → output"]
-    SC --> G["GENERATE\nper task, dependency-ordered\nbounded, task-aware context"]
-    G --> V["VALIDATE\nnpm install + typecheck + test"]
-    V -- pass --> R[REPORT: tokens, cost, status]
-    V -- fail --> REP["REPAIR (bounded tool loop)\nread_file / write_file /\nrun_typecheck / run_tests\nrolling context window\nmax 3 rounds; fallback:\nwhole-file regeneration"]
-    REP --> V
+flowchart LR
+    S[spec] --> P[plan] --> SC[scaffold] --> G[generate] --> V[validate]
+    V -- fail --> R[repair] --> V
+    V -- pass --> D[report]
 ```
 
-**Hybrid design.** Planning and generation are a deterministic pipeline
-(predictable cost and shape even on a modified spec); repair is a genuine
-LLM tool-calling loop — the model reads errors, inspects files, patches
-them, and re-runs checks itself. Models that can't produce valid tool calls
-degrade gracefully to whole-file regeneration, so the agent completes on
-weak free-tier models and shines on strong ones.
+- **Plan** — one LLM call returns a JSON task list (`{id, file, action,
+  description, dependsOn}`). It gets schema-validated (paths restricted to
+  `src/` plus a small allowlist), dependency refs normalized, and
+  topo-sorted. Invalid plans get one retry with the rejection reason.
+- **Scaffold** — copies `boilerplate/` into the output dir. No LLM.
+- **Generate** — one call per task in dependency order. Each prompt carries
+  the spec, a small curated slice of boilerplate context, the plan manifest,
+  and the task's dependency files read from disk. Never the whole repo.
+- **Validate** — runs the generated app's own `npm run typecheck` and
+  `npm run test`.
+- **Repair** — on failure the model gets four tools (`read_file`,
+  `write_file`, `run_typecheck`, `run_tests`) and drives the debugging
+  itself. Bounded: 3 rounds, 10 tool turns each, old tool results compressed
+  out of context. Models that can't do tool calls fall back to regenerating
+  the failing files whole.
 
-**Context management.** Each generation call receives only: the spec, a
-curated task-aware context pack (types + GraphQL operations always; theme +
-component exemplar for source tasks; test exemplar for test tasks), a
-`<plan>` manifest of every task (so each file knows the whole contract
-surface), and the files its task declares as dependencies. The repair loop
-keeps only the two most recent tool results in full — older ones compress
-to stubs the model can re-read on demand. No full-repo dumps anywhere.
+Generation is a deterministic pipeline on purpose — cost and behavior stay
+predictable on a spec I've never seen. Repair is a real tool-calling loop
+because debugging needs judgment. That split is the main design decision.
 
-**Anti-memorization.** The prompts contain zero app-domain knowledge —
-every product detail comes from the spec file, so a modified spec
-generalizes. (Verified by grep: no domain terms in `agent/src/prompts.ts`.)
+## Design decisions
 
-## Design decisions & tradeoffs
+- **No agent framework.** The loop is what's being evaluated, so I wrote it.
+  Agent deps: `tsx` and `typescript`. The LLM client is ~150 lines of
+  `fetch`.
+- **Provider-agnostic.** One OpenAI-compatible client; `LLM_BASE_URL` +
+  `LLM_API_KEY` + `LLM_MODEL` pick the provider (Anthropic, Groq, OpenAI,
+  Gemini, OpenRouter all work).
+- **Nothing app-specific in prompts.** All product knowledge comes from the
+  spec file. Prompts do encode stack traps that reliably break generated
+  code: unused imports under `noUnusedLocals`, this MUI version's Grid API,
+  JSX needing `.tsx`.
+- **Two path-safety layers.** Plan-time allowlist plus a filesystem jail
+  (`resolveSafe`) on every model-supplied path, including repair tool
+  writes. Repair can't touch `package.json` or tsconfig — weak models try
+  to "fix" tests by weakening the toolchain.
+- **Everything bounded.** Call cap, repair rounds, tool turns, output
+  budgets, truncated tool results. Failed runs still print the cost report.
 
-- **Provider-agnostic LLM layer** — one raw-`fetch` client speaking the
-  OpenAI-compatible chat completions format; `LLM_BASE_URL` /
-  `LLM_API_KEY` / `LLM_MODEL` select the provider (Anthropic via its
-  compat endpoint, Groq, OpenAI, Gemini, OpenRouter). Tradeoff: foregoes
-  provider-native extras (e.g. Anthropic prompt caching) so evaluators can
-  run it with whatever key they have.
-- **No agent framework, almost no dependencies** — the loop *is* the
-  deliverable. The agent's only packages are `tsx` and `typescript` (dev);
-  the LLM client, .env parser, and retry logic are hand-rolled and unit
-  tested (54 tests, TDD for every pure module).
-- **Two-layer path safety** — plan-time validation (writable allowlist:
-  `src/` + four root files, no traversal/control chars) and filesystem-time
-  confinement (`resolveSafe`) on every model-supplied path, including
-  repair-tool writes. The repair loop cannot touch `package.json` even if
-  prompted to.
-- **Bounded everything** — global LLM-call cap, 3 repair rounds, 10 tool
-  turns, adaptive output budgets, truncated tool results: a run cannot run
-  away on cost, and every abort path still prints the cost report.
+Free-tier testing (Groq, OpenRouter) shaped a lot of the client: adaptive
+output budgets for per-minute token caps, `Retry-After` support, recovery
+from killed response streams, a fallback when a provider can't parse the
+model's tool-call syntax.
 
-## Free-tier resilience (discovered the hard way)
+## Models and cost
 
-The committed sample was generated entirely on Groq's free tier, which
-surfaced real-world provider behaviors that are now permanent features:
+Developed and stress-tested on free tiers (Llama 3.3 70B, gpt-oss-120b/20b,
+Qwen, Nemotron). Consistent result: free models generate fine but can't
+converge in repair — model quality matters most at debugging, not writing.
 
-| Provider behavior | Agent response |
-|---|---|
-| Requests rejected when prompt + output budget exceeds a per-minute cap (HTTP 413) | Output budget auto-halves (16000 → … → 2000 floor) with a pause between retries; task-aware prompt trimming keeps requests small |
-| `tool_use_failed` 400s when a model emits malformed tool syntax | Retry once, then treat the model as tools-incapable and switch the repair round to whole-file regeneration |
-| Planner emits file paths instead of task ids in `dependsOn` | Normalize: map paths to the producing task (preserving order), keep boilerplate paths as context, reject only junk |
-| Reasoning models spend hidden thinking tokens from the output budget | Optional `LLM_REASONING_EFFORT=low` knob |
-| `Retry-After` headers on 429s | Honored (capped at 60s), else exponential backoff |
-| Repair conversations outgrow tight per-minute windows | Rolling tool-result window; graceful hand-off to regeneration when even that cannot fit |
+The committed sample: `claude-sonnet-5` for generation (17 files, typecheck
+green and 24/28 tests on the first pass), then repair sessions to 28/28.
 
-## Which LLM(s) and why
-
-Developed provider-agnostic; exercised end-to-end on Groq's and
-OpenRouter's free tiers (`llama-3.3-70b-versatile`, `openai/gpt-oss-120b`,
-`openai/gpt-oss-20b`, `qwen/qwen3.6-27b`, Nemotron) — chosen deliberately
-to prove the agent survives hostile rate limits and weak-model failure
-modes at $0 cost. Finding: free models *generate* competently but struggle
-to *converge* in repair; model quality bites hardest at debugging.
-
-The committed `generated-app/` was produced by **`claude-sonnet-5`** (full
-generation: 17 files, typecheck green + 24/28 tests on the first pass) and
-finished to 28/28 via `--resume` repair sessions (sonnet/opus/haiku),
-including the operator-hint feature (`AGENT_REPAIR_HINT`) — a
-human-in-the-loop steering knob where the operator points at a diagnosis
-and the agent still performs all edits itself.
-
-Note on the cost line: the built-in price table covers Anthropic models;
-other providers intentionally report `n/a` rather than a wrong guess —
-Groq free tier is $0 by definition.
-
-## Cost per run (measured)
-
-| Metric | Full generation run (claude-sonnet-5) | Total incl. repair convergence |
+| | Generation run | Total incl. repair |
 |---|---|---|
 | LLM calls | 48 | 182 |
-| Tokens | 298K in / 28K out | ~1.32M in / 81K out |
-| Estimated cost | $1.32 | $4.92 |
-| Repair rounds | 3 | 3 + five `--resume` sessions |
+| Tokens | 298K in / 28K out | 1.32M in / 81K out |
+| Cost | $1.32 | $4.92 |
 
-The repair tail was dominated by one genuinely hard case: the generated
-test suite contained mutually contradictory expectations (one test asserted
-a contiguous card title, another asserted split elements, a third was
-polluted by MUI Select's self-referencing `aria-labelledby`). The agent's
-anti-cheating guardrail correctly refused to weaken assertions, which
-deadlocked repair until the guardrail learned to distinguish contradictions
-from legitimate assertions. A typical clean run without such a tail:
-~$1.30-2.00 on `claude-sonnet-5`.
+The repair tail was mostly one bug class: the generated tests contradicted
+each other (one asserted a contiguous card title, another asserted split
+elements). My guardrail forbade weakening assertions, which deadlocked the
+loop until I let it reconcile genuinely contradictory expectations. A clean
+run without that tail lands around $1.50-2 on Sonnet.
 
-## What worked well / what I'd improve
+## What I'd improve
 
-- Worked well: dependency-ordered single-file generation keeps prompts
-  small and outputs parseable; schema-validated planning with one
-  correction retry converges reliably; the tool-calling repair loop makes
-  real, targeted fixes (verified `read_file`→`write_file`→`run_typecheck`
-  sequences in run logs); review-driven hardening caught every failure
-  class a hostile free tier could produce.
-- Hard-won insight: an agent that validates itself with tests it also wrote
-  needs a policy for *self-contradictory* tests — "never weaken assertions"
-  alone deadlocks against them. The guardrail now distinguishes broken test
-  setup and contradictory expectations (fixable) from legitimate assertions
-  (untouchable).
-- With more time: parallel generation of independent tasks; provider-native
-  prompt caching for the repeated context pack; a cross-test consistency
-  check at generation time (the planner sees all test tasks — it could be
-  asked to define one canonical rendering contract); a second-model
-  "reviewer" pass before validation; richer plan schema (per-task
-  acceptance criteria). `--resume` and operator hints started as
-  future-work items and were built mid-project when free-tier quota deaths
-  made them necessary.
+- Cross-test consistency check at plan time — the planner sees all test
+  tasks and could pin one rendering contract, which would have prevented
+  the contradiction above.
+- Parallel generation of independent tasks; prompt caching for the repeated
+  context block.
+- A reviewer pass (second model) between generate and validate.
 
 ## Assumptions
 
-- The challenge PDF marks 3 features required and the repo README marks all
-  7 required (their deadlines also differ); the sample spec covers all of
-  them, so either reading is satisfied.
-- Anthropic is reachable via its OpenAI-compatible endpoint; providers need
-  chat completions only (tool calls optional — there is a fallback path).
-- No real backend, auth, or CI/CD (explicitly out of scope).
-- macOS/Linux evaluators (spawned `npm` without a shell).
+- The PDF and the boilerplate README disagree on which features are
+  required (3 vs all 7); the sample spec covers all of them.
+- Anthropic is reached through its OpenAI-compatible endpoint; providers
+  only need chat completions (tool calls optional — there's a fallback).
+- macOS/Linux; no real backend, auth, or CI/CD (out of scope per the
+  challenge).
 
-## Repo layout
+## Layout
 
 ```
-agent/           the CLI agent (TypeScript; deps: tsx + typescript only)
-boilerplate/     provided boilerplate + theme.ts design-token system
-specs/           sample natural-language spec (the agent's input)
-generated-app/   committed sample output of a verified run
-docs/            design spec + implementation plan (process artifacts)
+agent/           the CLI agent
+boilerplate/     provided boilerplate + a small MUI theme-token system
+specs/           sample spec (agent input)
+generated-app/   committed sample output
+docs/            design doc + implementation plan
 ```
-
-The git history tells the story: design doc → plan → boilerplate → each
-module TDD'd with two-stage review → E2E hardening discovered on real
-free-tier runs → verified sample.
