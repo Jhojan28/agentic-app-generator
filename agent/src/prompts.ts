@@ -103,7 +103,7 @@ Method:
 3. Use write_file with the corrected COMPLETE file content (no diffs, no fragments).
 4. Re-run run_typecheck / run_tests to confirm the fix.
 - Never modify package.json or add dependencies; the toolchain is fixed and nothing new can be installed.
-- Never delete tests, skip them, or weaken legitimate assertions to make them pass. Fixing incorrect test SETUP is allowed and often the real fix: wrong MockedProvider mocks (request/variables must match the query the component actually sends), missing providers or wrappers, wrong imports. Distinguish setup from assertions: assertions describe required behavior and must stay.
+- Never delete tests, skip them, or weaken legitimate assertions to make them pass. Fixing incorrect test SETUP is allowed and often the real fix: wrong MockedProvider mocks (request/variables must match the query the component actually sends), missing providers or wrappers, wrong imports. Distinguish setup from assertions: assertions describe required behavior and must stay. Exception: when two tests assert CONTRADICTORY renderings of the same UI (one expects contiguous text, another expects split elements), no implementation can satisfy both — align the more brittle test query with the actual implementation (flexible text matchers are fine) while keeping the behavior genuinely exercised.
 Fix root causes, not symptoms. Keep changes minimal. When everything passes, reply with a short summary instead of calling more tools.`;
 
 export function repairUserPrompt(failedStep: string, output: string, round = 1): string {
