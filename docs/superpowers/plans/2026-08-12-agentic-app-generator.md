@@ -559,9 +559,16 @@ const ALLOWED_ROOT_FILES = new Set([
 ]);
 
 export function isSafeProjectPath(file: string): boolean {
+  if (file.length === 0 || file !== file.trim()) return false; // whitespace/newline padding
+  if (file.endsWith("/")) return false; // a directory, not a file
+  for (const ch of file) {
+    if ((ch.codePointAt(0) ?? 0) < 33) return false; // control chars and spaces
+  }
   if (file.includes("..") || file.startsWith("/") || file.includes("\\")) return false;
   return file.startsWith("src/") || ALLOWED_ROOT_FILES.has(file);
 }
+
+const ALLOWED_HINT = `paths must start with "src/" or be one of: ${[...ALLOWED_ROOT_FILES].join(", ")}`;
 
 /** Structurally validate the LLM-produced plan. Throws descriptive errors
  *  (the messages are fed back to the model on the retry prompt). */
@@ -582,7 +589,8 @@ export function validatePlan(raw: unknown): PlanTask[] {
     ids.add(id);
     if (typeof file !== "string" || !isSafeProjectPath(file))
       throw new Error(
-        `Task "${id}": "file" must be a relative path inside the project (got ${String(file)})`
+        `Task "${id}": "file" is not writable by this agent — ${ALLOWED_HINT} ` +
+          `(got ${JSON.stringify(file).slice(0, 120)})`
       );
     if (action !== "create" && action !== "modify")
       throw new Error(`Task "${id}": "action" must be "create" or "modify"`);
@@ -1144,7 +1152,7 @@ Rules:
 - Cover every feature in the spec, including test files (they live in src/__tests__/).
 - Hooks and shared utilities come before the components that use them; components come before the screens composing them; "modify src/App.tsx" is the last implementation task, followed only by test tasks that depend on it.
 - dependsOn lists the ids of tasks whose files this task imports.
-- 8 to 20 tasks. File paths are relative (src/...).
+- 8 to 20 tasks. File paths must start with src/ — the only other writable files are index.html, vite.config.ts, vitest.config.ts, tsconfig.json. Never plan changes to package.json; dependencies are fixed.
 </instructions>
 
 <output_format>
