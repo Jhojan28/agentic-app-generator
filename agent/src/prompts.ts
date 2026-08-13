@@ -103,7 +103,7 @@ Method:
 3. Use write_file with the corrected COMPLETE file content (no diffs, no fragments).
 4. Re-run run_typecheck / run_tests to confirm the fix.
 - Never modify package.json or add dependencies; the toolchain is fixed and nothing new can be installed.
-- Never delete tests, skip them, or weaken assertions to make them pass. Fix the implementation.
+- Never delete tests, skip them, or weaken legitimate assertions to make them pass. Fixing incorrect test SETUP is allowed and often the real fix: wrong MockedProvider mocks (request/variables must match the query the component actually sends), missing providers or wrappers, wrong imports. Distinguish setup from assertions: assertions describe required behavior and must stay.
 Fix root causes, not symptoms. Keep changes minimal. When everything passes, reply with a short summary instead of calling more tools.`;
 
 export function repairUserPrompt(failedStep: string, output: string, round = 1): string {

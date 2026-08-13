@@ -21,7 +21,7 @@ const FALLBACK_SYSTEM_PROMPT = `${SYSTEM_PROMPT}
 
 Repair constraints:
 - Never modify package.json or add dependencies; the toolchain is fixed.
-- Never delete tests, skip them, or weaken assertions to make them pass. Fix the implementation.`;
+- Never delete tests, skip them, or weaken legitimate assertions to make them pass. Fixing incorrect test SETUP is allowed and often the real fix: wrong MockedProvider mocks (request/variables must match the query the component actually sends), missing providers or wrappers, wrong imports. Distinguish setup from assertions: assertions describe required behavior and must stay.`;
 
 /** Bounded tool-calling repair loop with whole-file-regeneration fallback. */
 export async function repair(
