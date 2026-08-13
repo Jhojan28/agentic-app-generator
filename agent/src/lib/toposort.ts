@@ -14,7 +14,7 @@ export function topoSort(tasks: PlanTask[]): PlanTask[] {
     visiting.add(id);
     const t = byId.get(id);
     if (!t) throw new Error(`Unknown task id "${id}"`);
-    for (const dep of t.dependsOn) visit(dep);
+    for (const dep of t.dependsOn) if (byId.has(dep)) visit(dep);
     visiting.delete(id);
     done.add(id);
     ordered.push(t);

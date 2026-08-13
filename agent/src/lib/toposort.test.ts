@@ -25,6 +25,7 @@ test("throws on dependency cycles", () => {
   assert.throws(() => topoSort([task("a", ["b"]), task("b", ["a"])]), /cycle/);
 });
 
-test("throws on unknown dependency ids", () => {
-  assert.throws(() => topoSort([task("a", ["ghost"])]), /Unknown task id/);
+test("skips dependsOn entries that are not task ids (file paths, validated upstream)", () => {
+  const sorted = topoSort([task("a", ["src/types.ts"])]);
+  assert.equal(sorted.map((t) => t.id).join(","), "a");
 });

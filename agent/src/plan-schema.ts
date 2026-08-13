@@ -49,8 +49,20 @@ export function validatePlan(raw: unknown): PlanTask[] {
       throw new Error(`Task "${id}": "dependsOn" must be an array of task ids`);
     tasks.push({ id, file, action, description, dependsOn: dependsOn as string[] });
   }
-  for (const t of tasks)
-    for (const d of t.dependsOn)
-      if (!ids.has(d)) throw new Error(`Task "${t.id}" depends on unknown task "${d}"`);
+  // Models often reference dependencies by file path instead of task id —
+  // that's reasonable output, so normalize: paths another task produces map
+  // to that task's id (preserving generation order); existing-file paths are
+  // kept verbatim (generate() includes them as context); anything else throws.
+  const fileToId = new Map(tasks.map((t) => [t.file, t.id]));
+  for (const t of tasks) {
+    t.dependsOn = t.dependsOn.map((d) => (ids.has(d) ? d : (fileToId.get(d) ?? d)));
+    for (const d of t.dependsOn) {
+      if (!ids.has(d) && !isSafeProjectPath(d)) {
+        throw new Error(
+          `Task "${t.id}" depends on unknown task "${d}" — dependsOn entries must be task ids (e.g. "t1") or project file paths`
+        );
+      }
+    }
+  }
   return tasks;
 }

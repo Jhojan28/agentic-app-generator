@@ -55,3 +55,17 @@ test("allows whitelisted root files and rejects others", () => {
   assert.equal(validatePlan([rootTask])[0]?.file, "index.html");
   assert.throws(() => validatePlan([{ ...good[0], file: "package.json" }]), /not writable/);
 });
+
+test("maps file-path dependsOn entries to the producing task's id", () => {
+  const tasks = validatePlan([
+    { id: "t1", file: "src/hooks/useThing.ts", action: "create", description: "hook", dependsOn: [] },
+    { id: "t2", file: "src/App.tsx", action: "modify", description: "wire", dependsOn: ["src/hooks/useThing.ts"] },
+  ]);
+  assert.deepEqual(tasks[1]?.dependsOn, ["t1"]);
+});
+
+test("keeps existing-file path deps no task produces, rejects junk deps", () => {
+  const tasks = validatePlan([{ ...good[0], dependsOn: ["src/types.ts"] }]);
+  assert.deepEqual(tasks[0]?.dependsOn, ["src/types.ts"]);
+  assert.throws(() => validatePlan([{ ...good[0], dependsOn: ["nonsense"] }]), /unknown task/);
+});

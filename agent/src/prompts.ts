@@ -40,7 +40,7 @@ Decompose the spec into an ordered list of implementation tasks for this codebas
 Rules:
 - Cover every feature in the spec, including test files (they live in src/__tests__/).
 - Hooks and shared utilities come before the components that use them; components come before the screens composing them; "modify src/App.tsx" is the last implementation task, followed only by test tasks.
-- dependsOn lists the ids of tasks whose files this task imports.
+- dependsOn lists the ids of tasks whose files this task imports (ids like "t1", never file paths).
 - 8 to 20 tasks. File paths must start with src/ — the only other writable files are index.html, vite.config.ts, vitest.config.ts, tsconfig.json. Never plan changes to package.json; dependencies are fixed.
 - Any file containing JSX must use the .tsx extension (this includes hook tests that wrap renderHook in <MockedProvider>). Non-JSX modules use .ts.
 </instructions>

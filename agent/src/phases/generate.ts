@@ -23,8 +23,7 @@ export async function generate(
     console.log(`[generate] (${i + 1}/${tasks.length}) ${task.action} ${task.file}`);
     const depFiles: Record<string, string> = {};
     for (const depId of task.dependsOn) {
-      const depFile = fileByTaskId.get(depId);
-      if (!depFile) continue;
+      const depFile = fileByTaskId.get(depId) ?? depId;
       const abs = resolveSafe(outputDir, depFile);
       if (fs.existsSync(abs)) depFiles[depFile] = fs.readFileSync(abs, "utf8");
     }
