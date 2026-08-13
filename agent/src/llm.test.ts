@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractMessage, backoffMs } from "./llm";
+import { extractMessage, backoffMs, degradeOutputBudget } from "./llm";
 
 test("extractMessage returns a normalized assistant message, dropping provider extras", () => {
   const msg = extractMessage({
@@ -39,4 +39,12 @@ test("backoffMs honors retry-after, caps at 60s, falls back to exponential", () 
   assert.equal(backoffMs(1, "999"), 60_000);
   assert.equal(backoffMs(2, null), 4000);
   assert.equal(backoffMs(3, "garbage"), 8000);
+});
+
+test("degradeOutputBudget halves down to a 4000 floor, then gives up", () => {
+  assert.equal(degradeOutputBudget(16000), 8000);
+  assert.equal(degradeOutputBudget(8000), 4000);
+  assert.equal(degradeOutputBudget(5000), 4000);
+  assert.equal(degradeOutputBudget(4000), null);
+  assert.equal(degradeOutputBudget(3000), null);
 });

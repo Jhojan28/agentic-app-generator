@@ -52,11 +52,18 @@ export function buildConfig(
       `AGENT_MAX_LLM_CALLS must be a positive number (got "${String(process.env["AGENT_MAX_LLM_CALLS"])}")`
     );
   }
+  const maxOutputTokens = Number(process.env["LLM_MAX_OUTPUT_TOKENS"] ?? 16000);
+  if (!Number.isFinite(maxOutputTokens) || maxOutputTokens <= 0) {
+    throw new Error(
+      `LLM_MAX_OUTPUT_TOKENS must be a positive number (got "${String(process.env["LLM_MAX_OUTPUT_TOKENS"])}")`
+    );
+  }
   return {
     baseUrl: (process.env["LLM_BASE_URL"] ?? "https://api.anthropic.com/v1").replace(/\/+$/, ""),
     apiKey,
     model: process.env["LLM_MODEL"] ?? "claude-opus-5",
     maxLlmCalls,
+    maxOutputTokens,
     specPath: path.resolve(args.spec),
     outputDir: path.resolve(args.output),
     boilerplateDir: path.join(repoRoot, "boilerplate"),

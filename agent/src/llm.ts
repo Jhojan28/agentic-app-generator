@@ -24,7 +24,6 @@ interface ChatCompletionResponse {
 }
 
 const MAX_ATTEMPTS = 4;
-const MAX_OUTPUT_TOKENS = 16000;
 const REQUEST_TIMEOUT_MS = 120_000;
 
 /** Backoff for retryable failures: honor Retry-After (capped at 60s), else exponential. */
@@ -32,6 +31,13 @@ export function backoffMs(attempt: number, retryAfterHeader: string | null): num
   const ra = Number(retryAfterHeader);
   if (Number.isFinite(ra) && ra > 0) return Math.min(ra * 1000, 60_000);
   return 1000 * 2 ** attempt;
+}
+
+/** Halve the output budget after a request-too-large rejection; 4000 is the
+ *  floor below which generated files would truncate more than they'd fit. */
+export function degradeOutputBudget(current: number): number | null {
+  if (current <= 4000) return null;
+  return Math.max(4000, Math.floor(current / 2));
 }
 
 /** Extract and NORMALIZE the assistant message from a chat-completions body.
@@ -48,7 +54,7 @@ export function extractMessage(data: unknown): ChatMessage {
   }
   if (choice.finish_reason === "length") {
     throw new Error(
-      `Response truncated at ${MAX_OUTPUT_TOKENS} output tokens — the generated content is incomplete.`
+      "Response truncated at the output-token limit — the generated content is incomplete."
     );
   }
   const normalized: ChatMessage = { role: "assistant", content: message.content ?? null };
@@ -71,7 +77,8 @@ export class LlmClient {
     private readonly apiKey: string,
     private readonly model: string,
     private readonly tracker: UsageTracker,
-    private readonly maxCalls: number
+    private readonly maxCalls: number,
+    private readonly maxOutputTokens: number = 16000
   ) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
   }
@@ -86,14 +93,20 @@ export class LlmClient {
     const body: Record<string, unknown> = {
       model: this.model,
       messages,
-      // Both spellings: OpenAI reasoning models reject max_tokens; everyone else ignores the other.
-      max_tokens: MAX_OUTPUT_TOKENS,
-      max_completion_tokens: MAX_OUTPUT_TOKENS,
     };
     if (tools && tools.length > 0) body["tools"] = tools;
 
+    let outputBudget = this.maxOutputTokens;
+    let sendMaxTokens = true;
     let lastError = "";
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      // Both spellings: OpenAI reasoning models reject max_tokens; everyone else ignores the other.
+      body["max_completion_tokens"] = outputBudget;
+      if (sendMaxTokens) {
+        body["max_tokens"] = outputBudget;
+      } else {
+        delete body["max_tokens"];
+      }
       const res = await fetch(`${this.baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
@@ -126,10 +139,27 @@ export class LlmClient {
           }
         } else {
           lastError = `HTTP ${res.status}: ${raw.slice(0, 500)}`;
+          if (
+            (res.status === 413 || (res.status === 429 && raw.includes('"type":"tokens"'))) &&
+            raw.includes("reduce")
+          ) {
+            const degraded = degradeOutputBudget(outputBudget);
+            if (degraded !== null) {
+              console.log(
+                `[llm] provider rejected request size — reducing output budget ${outputBudget} -> ${degraded}`
+              );
+              outputBudget = degraded;
+              continue; // immediate retry with a smaller budget (costs one attempt)
+            }
+            throw new Error(
+              `LLM request too large for this provider even at a ${outputBudget}-token output budget. ` +
+                `Set LLM_MAX_OUTPUT_TOKENS lower, pick a model with higher limits, or use a paid tier. ${lastError}`
+            );
+          }
           // OpenAI reasoning models reject the presence of max_tokens outright;
           // drop it once and retry immediately (costs one attempt).
-          if (res.status === 400 && raw.includes("max_tokens") && "max_tokens" in body) {
-            delete body["max_tokens"];
+          if (res.status === 400 && raw.includes("max_tokens") && sendMaxTokens) {
+            sendMaxTokens = false;
             continue;
           }
           // Only 429 and 5xx are retryable; anything else is a config/request bug.

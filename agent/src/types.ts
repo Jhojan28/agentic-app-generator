@@ -12,6 +12,7 @@ export interface AgentConfig {
   apiKey: string;
   model: string;
   maxLlmCalls: number;
+  maxOutputTokens: number;
   specPath: string;
   outputDir: string;
   boilerplateDir: string;
