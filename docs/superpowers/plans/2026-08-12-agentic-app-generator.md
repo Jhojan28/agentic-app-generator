@@ -8,6 +8,8 @@
 
 **Tech Stack:** TypeScript, Node 22+, `tsx` (only dependency), `node:test` for agent unit tests. Generated app: React 19 + Apollo + MUI + MSW + Vitest (pre-configured boilerplate).
 
+**Amendments (2026-08-12, from per-task code review):** Tasks 5-7 gained robustness fixes and regression tests beyond the blocks below — extract.ts handles info-string/unclosed/empty fences and multi-fence JSON (12 tests); toposort pins unknown-id behavior (4 tests); plan-schema rejects directory/whitespace paths and explains rejections via ALLOWED_HINT (8 tests). Cumulative suite totals therefore run higher than the per-task "Expected" lines originally stated: after T5=12, T6=16, T7=24, T8=27, T9=29, T10=32, T13=33. The git history records each amendment.
+
 **Paths:** Repo root is `/Users/jhojangarcia/Documents/BIMM Senior FullStack Agentic AI Challenge/agentic-app-generator/`. The provided boilerplate source is `/Users/jhojangarcia/Documents/BIMM Senior FullStack Agentic AI Challenge/Fullstack-Coding-Challenge-main/`. All `git` and `npm` commands run from repo root unless stated. Git identity is already configured (jhojanestiven1996@gmail.com).
 
 ---
@@ -518,11 +520,11 @@ test("rejects duplicate ids", () => {
 test("rejects paths escaping the project", () => {
   assert.throws(
     () => validatePlan([{ ...good[0], file: "../evil.ts" }]),
-    /relative path inside the project/
+    /not writable/
   );
   assert.throws(
     () => validatePlan([{ ...good[0], file: "/etc/passwd" }]),
-    /relative path inside the project/
+    /not writable/
   );
 });
 
@@ -535,6 +537,19 @@ test("rejects unknown dependency ids", () => {
 
 test("rejects bad actions", () => {
   assert.throws(() => validatePlan([{ ...good[0], action: "delete" }]), /action/);
+});
+
+test("rejects directory-shaped and whitespace-padded paths", () => {
+  assert.throws(() => validatePlan([{ ...good[0], file: "src/" }]), /not writable/);
+  assert.throws(() => validatePlan([{ ...good[0], file: "src/components/" }]), /not writable/);
+  assert.throws(() => validatePlan([{ ...good[0], file: "src/App.tsx " }]), /not writable/);
+  assert.throws(() => validatePlan([{ ...good[0], file: "src/App.tsx\n" }]), /not writable/);
+});
+
+test("allows whitelisted root files and rejects others", () => {
+  const rootTask = { ...good[0], file: "index.html" };
+  assert.equal(validatePlan([rootTask])[0]?.file, "index.html");
+  assert.throws(() => validatePlan([{ ...good[0], file: "package.json" }]), /not writable/);
 });
 ```
 
