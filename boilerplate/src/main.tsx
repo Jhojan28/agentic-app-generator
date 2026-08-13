@@ -1,17 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { ApolloProvider } from "@apollo/client";
-import { ThemeProvider, createTheme, CssBaseline } from "@mui/material";
+import { ThemeProvider, CssBaseline } from "@mui/material";
 import { client } from "@/graphql/client";
+import { theme } from "@/theme";
 import App from "@/App";
-
-const theme = createTheme({
-  palette: {
-    mode: "light",
-    primary: { main: "#1976d2" },
-    secondary: { main: "#dc004e" },
-  },
-});
 
 async function bootstrap() {
   // Start MSW in development
