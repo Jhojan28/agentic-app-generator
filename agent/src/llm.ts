@@ -1,5 +1,9 @@
 import { UsageTracker } from "./report";
 
+/** The provider could not parse the model's tool-call syntax (e.g. Groq's
+ *  tool_use_failed) — the model is effectively tools-incapable right now. */
+export class ToolUseFailedError extends Error {}
+
 export interface ToolCall {
   id: string;
   type: "function";
@@ -98,6 +102,7 @@ export class LlmClient {
 
     let outputBudget = this.maxOutputTokens;
     let sendMaxTokens = true;
+    let toolFailRetried = false;
     let lastError = "";
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       // Both spellings: OpenAI reasoning models reject max_tokens; everyone else ignores the other.
@@ -139,6 +144,16 @@ export class LlmClient {
           }
         } else {
           lastError = `HTTP ${res.status}: ${raw.slice(0, 500)}`;
+          if (res.status === 400 && raw.includes("tool_use_failed")) {
+            if (!toolFailRetried) {
+              toolFailRetried = true;
+              console.log("[llm] provider rejected malformed tool-call syntax — retrying once");
+              continue; // transient for some models; costs one attempt
+            }
+            throw new ToolUseFailedError(
+              `Provider cannot parse this model's tool calls. ${lastError}`
+            );
+          }
           if (
             (res.status === 413 || (res.status === 429 && raw.includes('"type":"tokens"'))) &&
             raw.includes("reduce")

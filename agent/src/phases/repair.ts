@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import type { LlmClient, ChatMessage } from "../llm";
+import { ToolUseFailedError } from "../llm";
 import { REPAIR_TOOLS, executeTool } from "../tools";
 import {
   SYSTEM_PROMPT,
@@ -54,7 +55,18 @@ async function toolLoop(
   ];
   let sawToolCall = false;
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
-    const response = await llm.chat(messages, REPAIR_TOOLS);
+    let response: ChatMessage;
+    try {
+      response = await llm.chat(messages, REPAIR_TOOLS);
+    } catch (err) {
+      if (err instanceof ToolUseFailedError) {
+        console.log(
+          "[repair] provider cannot parse this model's tool calls — switching to regeneration fallback"
+        );
+        return sawToolCall; // false on first turn -> regenerateFallback runs
+      }
+      throw err;
+    }
     messages.push(response);
     const calls = response.tool_calls ?? [];
     if (calls.length === 0) return sawToolCall; // done, or model can't do tools

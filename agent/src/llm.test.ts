@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractMessage, backoffMs, degradeOutputBudget } from "./llm";
+import { extractMessage, backoffMs, degradeOutputBudget, ToolUseFailedError } from "./llm";
 
 test("extractMessage returns a normalized assistant message, dropping provider extras", () => {
   const msg = extractMessage({
@@ -47,4 +47,10 @@ test("degradeOutputBudget halves down to a 4000 floor, then gives up", () => {
   assert.equal(degradeOutputBudget(5000), 4000);
   assert.equal(degradeOutputBudget(4000), null);
   assert.equal(degradeOutputBudget(3000), null);
+});
+
+test("ToolUseFailedError is an Error subclass", () => {
+  const err = new ToolUseFailedError("x");
+  assert.ok(err instanceof Error);
+  assert.ok(err instanceof ToolUseFailedError);
 });
