@@ -1806,11 +1806,18 @@ async function main(): Promise<void> {
   scaffold(config.boilerplateDir, config.outputDir);
   const pack = buildContextPack(config.outputDir);
 
-  console.log("[plan] decomposing spec into tasks...");
-  const tasks = await plan(llm, spec, pack);
-  for (const t of tasks) console.log(`  - ${t.id}: ${t.action} ${t.file}`);
+  let written: string[] = [];
+  try {
+    console.log("[plan] decomposing spec into tasks...");
+    const tasks = await plan(llm, spec, pack);
+    for (const t of tasks) console.log(`  - ${t.id}: ${t.action} ${t.file}`);
 
-  const written = await generate(llm, spec, tasks, pack, config.outputDir);
+    written = await generate(llm, spec, tasks, pack, config.outputDir);
+  } catch (err) {
+    // A mid-run abort still spent tokens — print the cost report before dying.
+    printReport(tracker, config.model, written, false, 0);
+    fail((err as Error).message);
+  }
 
   let result = validate(config.outputDir);
   let repairRounds = 0;
