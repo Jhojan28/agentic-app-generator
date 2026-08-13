@@ -165,7 +165,10 @@ export class LlmClient {
                 `[llm] provider rejected request size — reducing output budget ${outputBudget} -> ${degraded}`
               );
               outputBudget = degraded;
-              continue; // immediate retry with a smaller budget (costs one attempt)
+              // Size rejections on shared per-minute windows need the window to
+              // breathe — a small pause makes the smaller retry actually land.
+              await sleep(3000);
+              continue; // retry with a smaller budget (costs one attempt)
             }
             throw new Error(
               `LLM request too large for this provider even at a ${outputBudget}-token output budget. ` +
