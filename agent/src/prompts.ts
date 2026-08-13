@@ -112,12 +112,12 @@ Method:
 - Never delete tests, skip them, or weaken assertions to make them pass. Fix the implementation.
 Fix root causes, not symptoms. Keep changes minimal. When everything passes, reply with a short summary instead of calling more tools.`;
 
-export function repairUserPrompt(failedStep: string, output: string): string {
-  return `Validation failed at step "${failedStep}". Output (tail):
-
-${output}
-
-Fix the project so typecheck and tests pass.`;
+export function repairUserPrompt(failedStep: string, output: string, round = 1): string {
+  const retryNote =
+    round > 1
+      ? `\n\nThis is repair attempt ${round}; the previous attempt did not fix the problem — re-diagnose and try a different root cause.`
+      : "";
+  return `Validation failed at step "${failedStep}". Output (tail):\n\n${output}${retryNote}\n\nFix the project so typecheck and tests pass.`;
 }
 
 export function regenerateFilePrompt(
