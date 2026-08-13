@@ -140,8 +140,15 @@ export class LlmClient {
         lastError = `network error: ${res.message}`;
       } else {
         retryAfter = res.headers.get("retry-after");
-        const raw = await res.text();
-        if (res.ok) {
+        // The body read can fail independently of the request (free tiers kill
+        // long streams mid-response) — treat that as a retryable network error.
+        const raw = await res.text().catch((err: Error) => {
+          lastError = `network error: response body failed mid-read (${err.message})`;
+          return null;
+        });
+        if (raw === null) {
+          // fall through to backoff+retry below
+        } else if (res.ok) {
           let parsed = false;
           let data: unknown;
           try {
