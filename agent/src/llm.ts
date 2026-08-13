@@ -4,6 +4,10 @@ import { UsageTracker } from "./report";
  *  tool_use_failed) — the model is effectively tools-incapable right now. */
 export class ToolUseFailedError extends Error {}
 
+/** The request is too large for this provider even at the minimum output
+ *  budget — retrying as-is cannot succeed. */
+export class RequestTooLargeError extends Error {}
+
 export interface ToolCall {
   id: string;
   type: "function";
@@ -170,7 +174,7 @@ export class LlmClient {
               await sleep(3000);
               continue; // retry with a smaller budget (costs one attempt)
             }
-            throw new Error(
+            throw new RequestTooLargeError(
               `LLM request too large for this provider even at a ${outputBudget}-token output budget. ` +
                 `Reduce prompt size, set LLM_MAX_OUTPUT_TOKENS lower, pick a model with higher limits, or use a paid tier. ${lastError}`
             );

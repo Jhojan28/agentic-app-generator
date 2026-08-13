@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import type { LlmClient, ChatMessage } from "../llm";
-import { ToolUseFailedError } from "../llm";
+import { ToolUseFailedError, RequestTooLargeError } from "../llm";
 import { REPAIR_TOOLS, executeTool } from "../tools";
 import {
   SYSTEM_PROMPT,
@@ -14,6 +14,8 @@ import { validate, type ValidationResult } from "./validate";
 
 const MAX_ROUNDS = 3; // full validate->fix cycles
 const MAX_TOOL_TURNS = 10; // LLM turns inside one tool loop
+const TOOL_RESULT_CHARS = 5000;
+const KEEP_RECENT_TOOL_RESULTS = 2;
 
 const FALLBACK_SYSTEM_PROMPT = `${SYSTEM_PROMPT}
 
@@ -65,6 +67,12 @@ async function toolLoop(
         );
         return sawToolCall; // false on first turn -> regenerateFallback runs
       }
+      if (err instanceof RequestTooLargeError) {
+        console.log(
+          "[repair] repair conversation no longer fits the provider's request-size limits — ending tool loop"
+        );
+        return sawToolCall;
+      }
       throw err;
     }
     messages.push(response);
@@ -74,16 +82,35 @@ async function toolLoop(
     for (const call of calls) {
       const raw = executeTool(appDir, call.function.name, call.function.arguments);
       const result =
-        raw.length > 8000
-          ? `${raw.slice(0, 8000)}\n[... truncated at 8000 chars — the real file is longer ...]`
+        raw.length > TOOL_RESULT_CHARS
+          ? `${raw.slice(0, TOOL_RESULT_CHARS)}\n[... truncated — the real content is longer ...]`
           : raw;
       console.log(
         `[repair]   ${call.function.name} (${raw.length}B) -> ${raw.split("\n")[0]?.slice(0, 60)}`
       );
       messages.push({ role: "tool", tool_call_id: call.id, content: result || "(empty file)" });
     }
+    compressOlderToolResults(messages);
   }
   return sawToolCall;
+}
+
+/** Keep only the most recent tool results in full; stub older ones so the
+ *  repair conversation fits providers with small per-minute token windows.
+ *  The model can always re-read a file it still needs. */
+export function compressOlderToolResults(
+  messages: ChatMessage[],
+  keepRecent = KEEP_RECENT_TOOL_RESULTS
+): void {
+  const toolIndexes = messages
+    .map((m, i) => (m.role === "tool" ? i : -1))
+    .filter((i) => i !== -1);
+  for (const i of toolIndexes.slice(0, Math.max(0, toolIndexes.length - keepRecent))) {
+    const msg = messages[i];
+    if (msg && msg.content && msg.content.length > 400) {
+      msg.content = `${msg.content.slice(0, 400)}\n[older result truncated to save context — call the tool again if needed]`;
+    }
+  }
 }
 
 /** Weak-model fallback: regenerate whole files named in the error output. */
