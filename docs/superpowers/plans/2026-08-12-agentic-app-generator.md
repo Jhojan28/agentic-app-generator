@@ -1746,7 +1746,7 @@ import { buildContextPack } from "./context";
 import { plan } from "./phases/plan";
 import { scaffold } from "./phases/scaffold";
 import { generate } from "./phases/generate";
-import { validate } from "./phases/validate";
+import { validate, type ValidationResult } from "./phases/validate";
 import { repair } from "./phases/repair";
 
 function usage(): void {
@@ -1807,29 +1807,31 @@ async function main(): Promise<void> {
   const pack = buildContextPack(config.outputDir);
 
   let written: string[] = [];
+  let result: ValidationResult = { ok: false, output: "" };
+  let repairRounds = 0;
   try {
     console.log("[plan] decomposing spec into tasks...");
     const tasks = await plan(llm, spec, pack);
     for (const t of tasks) console.log(`  - ${t.id}: ${t.action} ${t.file}`);
 
     written = await generate(llm, spec, tasks, pack, config.outputDir);
-  } catch (err) {
-    // A mid-run abort still spent tokens — print the cost report before dying.
-    printReport(tracker, config.model, written, false, 0);
-    fail((err as Error).message);
-  }
 
-  let result = validate(config.outputDir);
-  let repairRounds = 0;
-  if (!result.ok && result.failedStep === "npm install") {
-    console.error(result.output);
-    fail("npm install failed in the generated app — an environment problem the repair loop cannot fix.");
-  }
-  if (!result.ok) {
-    console.log(`[validate] FAILED at ${result.failedStep}`);
-    const fixed = await repair(llm, config.outputDir, result);
-    repairRounds = fixed.rounds;
-    if (fixed.ok) result = { ok: true, output: "repaired" };
+    result = validate(config.outputDir);
+    if (!result.ok && result.failedStep === "npm install") {
+      console.error(result.output);
+      fail("npm install failed in the generated app — an environment problem the repair loop cannot fix.");
+    }
+    if (!result.ok) {
+      console.log(`[validate] FAILED at ${result.failedStep}`);
+      const fixed = await repair(llm, config.outputDir, result);
+      repairRounds = fixed.rounds;
+      if (fixed.ok) result = { ok: true, output: "repaired" };
+    }
+  } catch (err) {
+    // A mid-run abort (budget, provider error) still spent tokens — print the
+    // cost report before dying. fail() exits, so it never reaches this catch.
+    printReport(tracker, config.model, written, false, repairRounds);
+    fail((err as Error).message);
   }
 
   printReport(tracker, config.model, written, result.ok, repairRounds);
