@@ -52,7 +52,9 @@ async function toolLoop(
     { role: "system", content: REPAIR_SYSTEM_PROMPT },
     {
       role: "user",
-      content: repairUserPrompt(failure.failedStep ?? "unknown", failure.output, round),
+      content: withOperatorHint(
+        repairUserPrompt(failure.failedStep ?? "unknown", failure.output, round)
+      ),
     },
   ];
   let sawToolCall = false;
@@ -143,4 +145,12 @@ async function regenerateFallback(
     fs.writeFileSync(abs, code);
     console.log(`[repair]   regenerated ${file}`);
   }
+}
+
+/** Optional human-in-the-loop steering: AGENT_REPAIR_HINT is appended to the
+ *  repair briefing when set. The agent still diagnoses and edits on its own —
+ *  the operator only points, never writes. */
+function withOperatorHint(prompt: string): string {
+  const hint = process.env["AGENT_REPAIR_HINT"];
+  return hint ? `${prompt}\n\nOperator hint (verified observation, trust it): ${hint}` : prompt;
 }
