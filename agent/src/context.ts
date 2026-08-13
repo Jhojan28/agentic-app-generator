@@ -46,8 +46,12 @@ function listTree(dir: string): string {
 }
 
 /** Render the tree plus a selected subset of key files as prompt context. */
-export function renderContext(pack: ContextPack, includeFiles: string[]): string {
-  const sections = [`<file_tree>\n${pack.tree}\n</file_tree>`];
+export function renderContext(
+  pack: ContextPack,
+  includeFiles: string[],
+  withTree = true
+): string {
+  const sections = withTree ? [`<file_tree>\n${pack.tree}\n</file_tree>`] : [];
   for (const rel of includeFiles) {
     const content = pack.files[rel];
     if (content) {

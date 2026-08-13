@@ -68,13 +68,17 @@ ${spec}
 </spec>
 
 <context>
-${renderContext(pack, [
-  "src/types.ts",
-  "src/graphql/queries.ts",
-  "src/theme.ts",
-  "src/components/Example.tsx",
-  "src/__tests__/Example.test.tsx",
-])}
+${renderContext(
+  pack,
+  [
+    "src/types.ts",
+    "src/graphql/queries.ts",
+    "src/theme.ts",
+    "src/components/Example.tsx",
+    "src/__tests__/Example.test.tsx",
+  ],
+  false
+)}
 </context>
 
 <plan>
