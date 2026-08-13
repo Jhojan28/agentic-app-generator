@@ -1814,6 +1814,10 @@ async function main(): Promise<void> {
 
   let result = validate(config.outputDir);
   let repairRounds = 0;
+  if (!result.ok && result.failedStep === "npm install") {
+    console.error(result.output);
+    fail("npm install failed in the generated app — an environment problem the repair loop cannot fix.");
+  }
   if (!result.ok) {
     console.log(`[validate] FAILED at ${result.failedStep}`);
     const fixed = await repair(llm, config.outputDir, result);
