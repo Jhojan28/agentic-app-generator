@@ -57,3 +57,18 @@ test("buildConfig rejects a non-numeric or non-positive LLM call cap", () => {
     delete process.env["AGENT_MAX_LLM_CALLS"];
   }
 });
+
+test("buildConfig validates LLM_REASONING_EFFORT when set", () => {
+  process.env["LLM_API_KEY"] = "test-key";
+  process.env["LLM_REASONING_EFFORT"] = "extreme";
+  try {
+    assert.throws(() => buildConfig({ spec: "s.md", output: "out" }, "/tmp"), /LLM_REASONING_EFFORT/);
+    process.env["LLM_REASONING_EFFORT"] = "low";
+    assert.equal(buildConfig({ spec: "s.md", output: "out" }, "/tmp").reasoningEffort, "low");
+    delete process.env["LLM_REASONING_EFFORT"];
+    assert.equal(buildConfig({ spec: "s.md", output: "out" }, "/tmp").reasoningEffort, undefined);
+  } finally {
+    delete process.env["LLM_API_KEY"];
+    delete process.env["LLM_REASONING_EFFORT"];
+  }
+});

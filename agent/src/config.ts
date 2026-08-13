@@ -58,12 +58,23 @@ export function buildConfig(
       `LLM_MAX_OUTPUT_TOKENS must be a positive number (got "${String(process.env["LLM_MAX_OUTPUT_TOKENS"])}")`
     );
   }
+  const rawReasoningEffort = process.env["LLM_REASONING_EFFORT"];
+  let reasoningEffort: "low" | "medium" | "high" | undefined;
+  if (rawReasoningEffort !== undefined) {
+    if (rawReasoningEffort !== "low" && rawReasoningEffort !== "medium" && rawReasoningEffort !== "high") {
+      throw new Error(
+        `LLM_REASONING_EFFORT must be one of low, medium, high (got "${rawReasoningEffort}")`
+      );
+    }
+    reasoningEffort = rawReasoningEffort;
+  }
   return {
     baseUrl: (process.env["LLM_BASE_URL"] ?? "https://api.anthropic.com/v1").replace(/\/+$/, ""),
     apiKey,
     model: process.env["LLM_MODEL"] ?? "claude-opus-5",
     maxLlmCalls,
     maxOutputTokens,
+    ...(reasoningEffort !== undefined ? { reasoningEffort } : {}),
     specPath: path.resolve(args.spec),
     outputDir: path.resolve(args.output),
     boilerplateDir: path.join(repoRoot, "boilerplate"),

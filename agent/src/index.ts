@@ -68,7 +68,8 @@ async function main(): Promise<void> {
     config.model,
     tracker,
     config.maxLlmCalls,
-    config.maxOutputTokens
+    config.maxOutputTokens,
+    config.reasoningEffort
   );
 
   console.log("[scaffold] copying boilerplate...");

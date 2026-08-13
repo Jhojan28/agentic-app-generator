@@ -13,6 +13,7 @@ export interface AgentConfig {
   model: string;
   maxLlmCalls: number;
   maxOutputTokens: number;
+  reasoningEffort?: "low" | "medium" | "high";
   specPath: string;
   outputDir: string;
   boilerplateDir: string;

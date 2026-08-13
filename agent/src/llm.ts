@@ -87,7 +87,8 @@ export class LlmClient {
     private readonly model: string,
     private readonly tracker: UsageTracker,
     private readonly maxCalls: number,
-    private readonly maxOutputTokens: number = 16000
+    private readonly maxOutputTokens: number = 16000,
+    private readonly reasoningEffort?: string
   ) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
   }
@@ -104,6 +105,7 @@ export class LlmClient {
       messages,
     };
     if (tools && tools.length > 0) body["tools"] = tools;
+    if (this.reasoningEffort) body["reasoning_effort"] = this.reasoningEffort;
 
     let outputBudget = this.maxOutputTokens;
     let sendMaxTokens = true;
