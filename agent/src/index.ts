@@ -12,7 +12,10 @@ import { validate, type ValidationResult } from "./phases/validate";
 import { repair } from "./phases/repair";
 
 function usage(): void {
-  console.log("Usage: npm run agent -- --spec <spec-file> --output <output-dir>");
+  console.log(
+    "Usage: npm run agent -- --spec <spec-file> --output <output-dir> [--resume]\n" +
+      "  --resume  skip scaffold/plan/generate; validate and repair the existing output dir"
+  );
 }
 
 function fail(message: string): never {
@@ -20,8 +23,9 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-function parseArgs(argv: string[]): { spec: string; output: string } {
+function parseArgs(argv: string[]): { spec: string; output: string; resume: boolean } {
   const args: Record<string, string> = {};
+  let resume = false;
   for (let i = 0; i < argv.length; i++) {
     const rawArg = argv[i];
     if (!rawArg) continue;
@@ -31,6 +35,8 @@ function parseArgs(argv: string[]): { spec: string; output: string } {
       const value = eq === -1 ? argv[++i] : rawArg.slice(eq + 1);
       if (!value) fail(`Missing value for ${flag}`);
       args[flag.slice(2)] = value;
+    } else if (flag === "--resume") {
+      resume = true;
     } else if (flag === "--help" || flag === "-h") {
       usage();
       process.exit(0);
@@ -45,7 +51,7 @@ function parseArgs(argv: string[]): { spec: string; output: string } {
     usage();
     fail("Both --spec and --output are required");
   }
-  return { spec, output };
+  return { spec, output, resume };
 }
 
 async function main(): Promise<void> {
@@ -72,19 +78,28 @@ async function main(): Promise<void> {
     config.reasoningEffort
   );
 
-  console.log("[scaffold] copying boilerplate...");
-  scaffold(config.boilerplateDir, config.outputDir);
-  const pack = buildContextPack(config.outputDir);
+  if (args.resume) {
+    if (!fs.existsSync(path.join(config.outputDir, "package.json"))) {
+      fail(`--resume requires an existing generated app at ${config.outputDir}`);
+    }
+    console.log("[resume] skipping scaffold/plan/generate — validating existing output...");
+  } else {
+    console.log("[scaffold] copying boilerplate...");
+    scaffold(config.boilerplateDir, config.outputDir);
+  }
 
   let written: string[] = [];
   let result: ValidationResult = { ok: false, output: "" };
   let repairRounds = 0;
   try {
-    console.log("[plan] decomposing spec into tasks...");
-    const tasks = await plan(llm, spec, pack);
-    for (const t of tasks) console.log(`  - ${t.id}: ${t.action} ${t.file}`);
+    if (!args.resume) {
+      const pack = buildContextPack(config.outputDir);
+      console.log("[plan] decomposing spec into tasks...");
+      const tasks = await plan(llm, spec, pack);
+      for (const t of tasks) console.log(`  - ${t.id}: ${t.action} ${t.file}`);
 
-    written = await generate(llm, spec, tasks, pack, config.outputDir);
+      written = await generate(llm, spec, tasks, pack, config.outputDir);
+    }
 
     result = validate(config.outputDir);
     if (!result.ok && result.failedStep === "npm install") {
