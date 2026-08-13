@@ -74,6 +74,11 @@ export function executeTool(appDir: string, name: string, argsJson: string): str
         if (!isSafeProjectPath(rel)) {
           return `ERROR: write_file refused: ${rel} is not writable by this agent (paths must start with "src/" or be index.html, vite.config.ts, vitest.config.ts, tsconfig.json).`;
         }
+        // Repair may fix code, never weaken the toolchain: models under
+        // pressure rewrite tsconfig/vitest configs instead of fixing errors.
+        if (!(rel.startsWith("src/") || rel === "index.html")) {
+          return `ERROR: write_file refused: ${rel} — repair may only write src/** files (or index.html). Fix the code, not the toolchain configuration.`;
+        }
         const abs = resolveSafe(appDir, rel);
         fs.mkdirSync(path.dirname(abs), { recursive: true });
         fs.writeFileSync(abs, String(args["content"] ?? ""));

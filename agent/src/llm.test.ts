@@ -34,8 +34,8 @@ test("extractMessage flags truncated responses", () => {
   );
 });
 
-test("backoffMs honors retry-after, caps at 60s, falls back to exponential", () => {
-  assert.equal(backoffMs(1, "30"), 30_000);
+test("backoffMs honors retry-after plus margin, caps at 60s, falls back to exponential", () => {
+  assert.equal(backoffMs(1, "30"), 34_000);
   assert.equal(backoffMs(1, "999"), 60_000);
   assert.equal(backoffMs(2, null), 4000);
   assert.equal(backoffMs(3, "garbage"), 8000);

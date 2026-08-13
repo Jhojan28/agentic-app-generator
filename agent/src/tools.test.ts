@@ -16,3 +16,8 @@ test("executeTool write_file refuses paths outside the writable set", () => {
   assert.match(executeTool(appDir, "write_file", '{"path":"package.json","content":"{}"}'), /not writable/);
   assert.match(executeTool(appDir, "write_file", '{"path":"node_modules/x.js","content":""}'), /not writable/);
 });
+
+test("executeTool write_file refuses toolchain configs (repair fixes code, not configs)", () => {
+  assert.match(executeTool(appDir, "write_file", '{"path":"tsconfig.json","content":"{}"}'), /repair may only write/);
+  assert.match(executeTool(appDir, "write_file", '{"path":"vitest.config.ts","content":""}'), /repair may only write/);
+});

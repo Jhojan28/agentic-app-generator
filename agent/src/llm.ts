@@ -31,13 +31,14 @@ interface ChatCompletionResponse {
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
-const MAX_ATTEMPTS = 4;
+const MAX_ATTEMPTS = 6;
 const REQUEST_TIMEOUT_MS = 120_000;
 
-/** Backoff for retryable failures: honor Retry-After (capped at 60s), else exponential. */
+/** Backoff for retryable failures: honor Retry-After plus a margin (rolling
+ *  per-minute windows need breathing room), capped at 60s; else exponential. */
 export function backoffMs(attempt: number, retryAfterHeader: string | null): number {
   const ra = Number(retryAfterHeader);
-  if (Number.isFinite(ra) && ra > 0) return Math.min(ra * 1000, 60_000);
+  if (Number.isFinite(ra) && ra > 0) return Math.min(ra * 1000 + 4000, 60_000);
   return 1000 * 2 ** attempt;
 }
 
