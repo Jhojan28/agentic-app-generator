@@ -37,11 +37,12 @@ export function backoffMs(attempt: number, retryAfterHeader: string | null): num
   return 1000 * 2 ** attempt;
 }
 
-/** Halve the output budget after a request-too-large rejection; 4000 is the
- *  floor below which generated files would truncate more than they'd fit. */
+/** Halve the output budget after a request-too-large rejection; 2000 tokens
+ *  ≈ a ~150-line file — enough for any single well-scoped component — is
+ *  the floor below which we give up rather than degrade further. */
 export function degradeOutputBudget(current: number): number | null {
-  if (current <= 4000) return null;
-  return Math.max(4000, Math.floor(current / 2));
+  if (current <= 2000) return null;
+  return Math.max(2000, Math.floor(current / 2));
 }
 
 /** Extract and NORMALIZE the assistant message from a chat-completions body.
@@ -168,7 +169,7 @@ export class LlmClient {
             }
             throw new Error(
               `LLM request too large for this provider even at a ${outputBudget}-token output budget. ` +
-                `Set LLM_MAX_OUTPUT_TOKENS lower, pick a model with higher limits, or use a paid tier. ${lastError}`
+                `Reduce prompt size, set LLM_MAX_OUTPUT_TOKENS lower, pick a model with higher limits, or use a paid tier. ${lastError}`
             );
           }
           // OpenAI reasoning models reject the presence of max_tokens outright;

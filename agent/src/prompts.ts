@@ -63,22 +63,16 @@ export function generatePrompt(
     .filter(([p]) => p !== task.file)
     .map(([p, c]) => `<file path="${p}">\n${c}\n</file>`)
     .join("\n\n");
+  const isTestTask = task.file.includes("__tests__") || task.file.includes(".test.");
+  const contextFiles = isTestTask
+    ? ["src/types.ts", "src/graphql/queries.ts", "src/__tests__/Example.test.tsx"]
+    : ["src/types.ts", "src/graphql/queries.ts", "src/theme.ts", "src/components/Example.tsx"];
   return `<spec>
 ${spec}
 </spec>
 
 <context>
-${renderContext(
-  pack,
-  [
-    "src/types.ts",
-    "src/graphql/queries.ts",
-    "src/theme.ts",
-    "src/components/Example.tsx",
-    "src/__tests__/Example.test.tsx",
-  ],
-  false
-)}
+${renderContext(pack, contextFiles, false)}
 </context>
 
 <plan>

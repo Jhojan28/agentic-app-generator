@@ -41,12 +41,13 @@ test("backoffMs honors retry-after, caps at 60s, falls back to exponential", () 
   assert.equal(backoffMs(3, "garbage"), 8000);
 });
 
-test("degradeOutputBudget halves down to a 4000 floor, then gives up", () => {
+test("degradeOutputBudget halves down to a 2000 floor, then gives up", () => {
   assert.equal(degradeOutputBudget(16000), 8000);
   assert.equal(degradeOutputBudget(8000), 4000);
-  assert.equal(degradeOutputBudget(5000), 4000);
-  assert.equal(degradeOutputBudget(4000), null);
-  assert.equal(degradeOutputBudget(3000), null);
+  assert.equal(degradeOutputBudget(4000), 2000);
+  assert.equal(degradeOutputBudget(3000), 2000);
+  assert.equal(degradeOutputBudget(2000), null);
+  assert.equal(degradeOutputBudget(1000), null);
 });
 
 test("ToolUseFailedError is an Error subclass", () => {
