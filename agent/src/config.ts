@@ -59,11 +59,16 @@ export function buildConfig(
     );
   }
   const rawReasoningEffort = process.env["LLM_REASONING_EFFORT"];
-  let reasoningEffort: "low" | "medium" | "high" | undefined;
+  let reasoningEffort: "none" | "low" | "medium" | "high" | undefined;
   if (rawReasoningEffort !== undefined) {
-    if (rawReasoningEffort !== "low" && rawReasoningEffort !== "medium" && rawReasoningEffort !== "high") {
+    if (
+      rawReasoningEffort !== "none" &&
+      rawReasoningEffort !== "low" &&
+      rawReasoningEffort !== "medium" &&
+      rawReasoningEffort !== "high"
+    ) {
       throw new Error(
-        `LLM_REASONING_EFFORT must be one of low, medium, high (got "${rawReasoningEffort}")`
+        `LLM_REASONING_EFFORT must be one of none, low, medium, high (got "${rawReasoningEffort}")`
       );
     }
     reasoningEffort = rawReasoningEffort;
