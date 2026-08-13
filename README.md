@@ -115,15 +115,6 @@ I'd improve:
   context block.
 - A reviewer pass (second model) between generate and validate.
 
-## Assumptions
-
-- The PDF and the boilerplate README disagree on which features are
-  required (3 vs all 7); the sample spec covers all of them.
-- Anthropic is reached through its OpenAI-compatible endpoint; providers
-  only need chat completions (tool calls optional — there's a fallback).
-- macOS/Linux; no real backend, auth, or CI/CD (out of scope per the
-  challenge).
-
 ## Layout
 
 ```
