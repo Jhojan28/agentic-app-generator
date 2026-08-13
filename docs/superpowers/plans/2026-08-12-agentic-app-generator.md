@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, Node 22+, `tsx` (only dependency), `node:test` for agent unit tests. Generated app: React 19 + Apollo + MUI + MSW + Vitest (pre-configured boilerplate).
 
-**Amendments (2026-08-12, from per-task code review):** Tasks 5-7 gained robustness fixes and regression tests beyond the blocks below — extract.ts handles info-string/unclosed/empty fences and multi-fence JSON (12 tests); toposort pins unknown-id behavior (4 tests); plan-schema rejects directory/whitespace paths and explains rejections via ALLOWED_HINT (8 tests). Cumulative suite totals therefore run higher than the per-task "Expected" lines originally stated: after T5=12, T6=16, T7=24, T8=27, T9=29, T10=32, T13=33. The git history records each amendment.
+**Amendments (2026-08-12, from per-task code review):** Tasks 5-7 gained robustness fixes and regression tests beyond the blocks below — extract.ts handles info-string/unclosed/empty fences and multi-fence JSON (12 tests); toposort pins unknown-id behavior (4 tests); plan-schema rejects directory/whitespace paths and explains rejections via ALLOWED_HINT (8 tests). Task 9's config gained export-prefix/inline-comment/BOM parsing and a validated call cap (6 tests). Task 11's llm.ts was reworked for provider resilience (error-shaped 200s, Retry-After, timeouts, truncation detection, message normalization, OpenAI max_tokens fallback) with extracted pure functions (5 tests). Task 12's prompts gained typecheck-trap rules (TS6133, MUI v6 Grid, .tsx-for-JSX, provider duplication), a `<plan>` manifest + `<current_file>` section in generatePrompt (now also taking allTasks), repair guardrails (no package.json edits, no test weakening), and handlers.ts in the planner's context. The git history records each amendment; the blocks below reflect the original plan where superseded.
 
 **Paths:** Repo root is `/Users/jhojangarcia/Documents/BIMM Senior FullStack Agentic AI Challenge/agentic-app-generator/`. The provided boilerplate source is `/Users/jhojangarcia/Documents/BIMM Senior FullStack Agentic AI Challenge/Fullstack-Coding-Challenge-main/`. All `git` and `npm` commands run from repo root unless stated. Git identity is already configured (jhojanestiven1996@gmail.com).
 
@@ -1318,7 +1318,7 @@ Expected: FAIL — cannot find module `./scaffold`.
 import fs from "node:fs";
 import path from "node:path";
 
-const EXCLUDED = new Set(["node_modules", "dist", ".git"]);
+const EXCLUDED = new Set(["node_modules", "dist", ".git", ".DS_Store"]);
 
 /** Copy the boilerplate into the output dir (fresh each run). */
 export function scaffold(boilerplateDir: string, outputDir: string): void {
@@ -1492,7 +1492,7 @@ export async function generate(
 
     const response = await llm.chat([
       { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: generatePrompt(spec, task, depFiles, pack) },
+      { role: "user", content: generatePrompt(spec, task, depFiles, pack, tasks) },
     ]);
     const code = extractCodeBlock(response.content ?? "");
     const abs = resolveSafe(outputDir, task.file);
